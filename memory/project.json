@@ -1,0 +1,10 @@
+{
+  "project": "cli-orchestrator",
+  "version": "2.0.0",
+  "architecture": "A2-single-operator",
+  "driver": "claude",
+  "worker_clis": ["gemini", "codex", "copilot"],
+  "excluded_clis": ["cline", "opencode"],
+  "created": "2026-02-27",
+  "notes": []
+}

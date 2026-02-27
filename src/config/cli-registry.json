@@ -1,0 +1,46 @@
+{
+  "gemini": {
+    "name": "Gemini CLI",
+    "description": "Google's Gemini AI for code generation and summarization",
+    "command": "gemini",
+    "installed": false,
+    "capabilities": ["code_generation", "summarization", "explanation"],
+    "auth": "google",
+    "auth_method": "google_account_or_api_key",
+    "args_format": "-p",
+    "example": "gemini -p 'Write a function to check if a number is prime'",
+    "output_format": "text",
+    "supports_piping": true,
+    "supports_file_input": true
+  },
+  "copilot": {
+    "name": "GitHub Copilot CLI",
+    "description": "GitHub's Copilot for code review, debugging, and refactoring",
+    "command": "copilot",
+    "installed": false,
+    "capabilities": ["code_review", "debugging", "refactoring", "explanation"],
+    "auth": "github_oauth",
+    "auth_method": "github_account_with_subscription",
+    "args_format": "-p",
+    "example": "copilot -p 'Review this code for issues'",
+    "output_format": "text",
+    "supports_piping": false,
+    "supports_file_input": true
+  },
+  "codex": {
+    "name": "Codex CLI",
+    "description": "OpenAI's Codex for code generation, refactoring, and review",
+    "command": "codex",
+    "installed": false,
+    "capabilities": ["code_generation", "code_review", "refactoring", "debugging"],
+    "auth": "openai_api_key",
+    "auth_method": "openai_api_key_or_login",
+    "args_format": "subcommand",
+    "args_template": "exec {prompt}",
+    "example": "codex exec 'Write a hello world function'",
+    "output_format": "text",
+    "supports_piping": true,
+    "supports_file_input": true,
+    "requires_git_repo": true
+  }
+}

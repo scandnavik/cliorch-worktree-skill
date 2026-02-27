@@ -1,0 +1,74 @@
+# cli-orchestrator Chain Definitions
+# Predefined multi-step task chains
+
+chains:
+
+  design_research_code_debug_repo:
+    description: "Full lifecycle: design → research → code → debug → repo"
+    steps:
+      - id: design
+        role: claude_driver
+        action: "Decompose task into sub-tasks and create plan"
+        cli: null  # Claude driver step (placeholder)
+      - id: research
+        role: worker
+        action: "Research frameworks, patterns, prior art"
+        cli: gemini
+        gate: secrets
+      - id: code
+        role: worker
+        action: "Implement code changes"
+        cli: codex
+        gate: secrets
+      - id: debug
+        role: worker
+        action: "Debug and validate implementation"
+        cli: codex
+        gate: secrets
+      - id: repo
+        role: worker
+        action: "Commit and create PR with patch"
+        cli: copilot
+        gate: ci
+        requires_patch: true
+
+  code_debug_repo:
+    description: "Code → debug → repo shortcut"
+    steps:
+      - id: plan
+        role: claude_driver
+        action: "Plan coding approach"
+        cli: null
+      - id: code
+        role: worker
+        action: "Implement code"
+        cli: codex
+        gate: secrets
+      - id: debug
+        role: worker
+        action: "Debug implementation"
+        cli: codex
+        gate: secrets
+      - id: repo
+        role: worker
+        action: "Commit with patch"
+        cli: copilot
+        gate: ci
+        requires_patch: true
+
+  research_only:
+    description: "Research task, no code changes"
+    steps:
+      - id: plan
+        role: claude_driver
+        action: "Define research questions"
+        cli: null
+      - id: research
+        role: worker
+        action: "Execute research"
+        cli: gemini
+        gate: secrets
+      - id: integrate
+        role: claude_driver
+        action: "Synthesize findings"
+        cli: null
