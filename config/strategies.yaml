@@ -41,6 +41,22 @@ strategies:
         cli: codex
         model: gpt-5 mini
 
+  claude_only:
+    description: "純 Claude 執行策略，不依賴外部模型"
+    manager:
+      cli: claude
+      model: claude-sonnet-4-6
+    flow:
+      - execution
+      - review
+    roles:
+      execution:
+        cli: claude
+        model: claude-haiku-4-5-20251001
+      review:
+        cli: claude
+        model: claude-haiku-4-5-20251001
+
   claude_gemini_copilot_codex:
     description: "Claude 發起 -> Gemini 發散 -> 收斂 -> Copilot 開發 -> Codex Review"
     manager:

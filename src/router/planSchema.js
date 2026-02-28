@@ -2,7 +2,7 @@
 // Plan schema definition and validation for CLI_Runner A2 OS
 // Runtime JS version (compiled from planSchema.ts conceptual spec)
 
-const ALLOWED_CLIS = ["gemini", "codex", "copilot"];
+const ALLOWED_CLIS = ["gemini", "codex", "copilot", "claude"];
 const GATE_TYPES = ["secrets", "ci", "auth", "network"];
 
 /** Validate a plan object. Returns list of errors (empty = valid). */

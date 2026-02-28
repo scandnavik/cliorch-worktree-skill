@@ -1,4 +1,18 @@
 {
+    "claude": {
+        "command": "claude",
+        "args_format": "-p",
+        "api_mode": "anthropic",
+        "default_model": "claude-haiku-4-5-20251001",
+        "capabilities": [
+            "code_generation",
+            "code_review",
+            "refactoring",
+            "debugging",
+            "analysis"
+        ],
+        "supports_file_input": false
+    },
     "gemini": {
         "command": "node",
         "args_format": "-e",
