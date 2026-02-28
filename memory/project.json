@@ -1,10 +1,39 @@
 {
-  "project": "cli-orchestrator",
+  "project": "CLI_Runner",
   "version": "2.0.0",
   "architecture": "A2-single-operator",
   "driver": "claude",
-  "worker_clis": ["gemini", "codex", "copilot"],
-  "excluded_clis": ["cline", "opencode"],
+  "worker_clis": [
+    "gemini",
+    "codex",
+    "copilot"
+  ],
+  "excluded_clis": [
+    "cline",
+    "opencode"
+  ],
   "created": "2026-02-27",
-  "notes": []
+  "notes": [],
+  "learned_context": [
+    {
+      "timestamp": "2026-02-28T04:58:25.469Z",
+      "issue": "Step undefined execution failed: Action contains denied command (Target Action: rm -rf /test)",
+      "resolution": "DO NOT use this exact command/path again. Use a safe alternative."
+    },
+    {
+      "timestamp": "2026-02-28T05:09:51.134Z",
+      "issue": "Step codex execution failed: CLI 'codex' not found in registry (Target Action: console.log('Hello from Codex'))",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
+    },
+    {
+      "timestamp": "2026-02-28T05:09:59.799Z",
+      "issue": "Step codex execution failed: CLI 'codex' not found in registry (Target Action: console.log('Codex Action for: Build something neat.'))",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
+    },
+    {
+      "timestamp": "2026-02-28T06:59:11.451Z",
+      "issue": "Step codex execution failed: Command failed: node -e \"console.log('Hello')\" --model \"gpt-5.2\"\nnode: bad option: --model\r\n (Target Action: console.log('Hello'))",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
+    }
+  ]
 }

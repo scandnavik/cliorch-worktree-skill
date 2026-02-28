@@ -1,0 +1,27 @@
+# user-defined multi-model orchestration strategies
+
+strategies:
+  default:
+    description: "標準的全能開發流程"
+    manager: 
+      cli: claude
+      model: claude-opus-4-6
+    roles:
+      ideation: 
+        cli: gemini
+        model: gemini-3.1-pro-preview
+      execution: 
+        cli: codex
+        model: gpt-5.2
+      version_control: 
+        cli: copilot
+
+  fast_code:
+    description: "跳過發想，只做快速純代碼修正"
+    manager: 
+      cli: codex
+      model: gpt-5 mini
+    roles:
+      execution:
+        cli: codex
+        model: gpt-5 mini

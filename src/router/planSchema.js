@@ -1,5 +1,5 @@
 // src/router/planSchema.js
-// Plan schema definition and validation for cli-orchestrator A2 OS
+// Plan schema definition and validation for CLI_Runner A2 OS
 // Runtime JS version (compiled from planSchema.ts conceptual spec)
 
 const ALLOWED_CLIS = ["gemini", "codex", "copilot"];
@@ -32,10 +32,29 @@ function validatePlan(plan) {
       errors.push(`Too many steps: ${plan.steps.length} > max ${c?.max_steps || 8}`);
     }
     for (const step of plan.steps) {
+      // General step validation
+      if (!step.id || typeof step.id !== "string") {
+        errors.push(`Step is missing a valid 'id'.`); // Removed index 'i' as it's not available in 'for...of'
+      }
+      if (!step.role || typeof step.role !== "string") {
+        errors.push(`Step ${step.id} is missing a valid 'role'.`);
+      }
+      if (step.cli && typeof step.cli !== "string") {
+        errors.push(`Step ${step.id} has invalid 'cli'.`);
+      }
+      if (step.cli && !ALLOWED_CLIS.includes(step.cli)) {
+        errors.push(`Step ${step.id} references disallowed CLI: ${step.cli}`);
+      }
+      if (step.model && typeof step.model !== "string") {
+        errors.push(`Step ${step.id} has invalid 'model'.`);
+      }
+      if (!step.action || typeof step.action !== "string") {
+        errors.push(`Step ${step.id} is missing a valid 'action'.`);
+      }
+
+      // Role-specific validation
       if (step.role === "worker") {
-        if (!step.cli || !ALLOWED_CLIS.includes(step.cli)) {
-          errors.push(`Step ${step.id}: invalid CLI "${step.cli}". Allowed: ${ALLOWED_CLIS.join(", ")}`);
-        }
+        // The previous `if (!step.cli || !ALLOWED_CLIS.includes(step.cli))` is now covered by the general validation above.
         if (step.cli === "copilot" && !step.requires_patch) {
           errors.push(`Step ${step.id}: copilot steps must have requires_patch=true`);
         }
@@ -67,13 +86,25 @@ function isDeniedCommand(command, denyList) {
   const normalized = command.trim().toLowerCase().replace(/\s*\|\s*/g, "|");
   return denyList.some(denied => {
     const d = denied.toLowerCase();
-    // For pipe-based denials like "curl|bash", check if command starts with program and pipes to target
+    // For pipe-based denials like "curl|bash", check if command pipes program to target
     if (d.includes("|")) {
       const [prog, target] = d.split("|");
       const parts = normalized.split("|");
-      return parts.some((p, i) => p.trim().startsWith(prog) && parts[i + 1] && parts[i + 1].trim().startsWith(target));
+      return parts.some((p, i) => {
+        const trimmed = p.trim();
+        const nextTrimmed = parts[i + 1] ? parts[i + 1].trim() : "";
+        // Match program at start of pipe segment (word boundary)
+        const progMatch = trimmed === prog || trimmed.startsWith(prog + " ");
+        const targetMatch = nextTrimmed === target || nextTrimmed.startsWith(target + " ");
+        return progMatch && targetMatch;
+      });
     }
-    return normalized.includes(d);
+    // Word-boundary match: denied token must appear as a standalone command/token.
+    // Check each pipe segment individually so "printenv | grep X" still matches "printenv".
+    const escaped = d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordBoundary = new RegExp(`(^|\\s)${escaped}(\\s|$)`);
+    const segments = normalized.split("|").map(s => s.trim());
+    return segments.some(seg => wordBoundary.test(seg));
   });
 }
 

@@ -1,5 +1,5 @@
 // tests/redteam-matrix.js
-// Full red-team validation for cli-orchestrator A2 OS
+// Full red-team validation for CLI_Runner A2 OS
 // Tests all 12 attack vectors (A1-F2) with adversarial plans
 
 const path = require("path");

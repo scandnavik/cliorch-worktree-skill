@@ -7,7 +7,8 @@ const { execSync } = require('child_process');
 
 class CLIRegistry {
   constructor(configPath = null) {
-    this.configPath = configPath || path.join(__dirname, 'config', 'cli-registry.json');
+    // Canonical config path: always resolve to project root config/cli-registry.json
+    this.configPath = configPath || path.join(__dirname, '..', 'config', 'cli-registry.json');
     this.registry = this.loadRegistry();
     this.updateInstalledStatus();
   }
@@ -44,8 +45,8 @@ class CLIRegistry {
 
     const command = this.registry[cliName].command;
     try {
-      // Try to run CLI with --version flag
-      execSync(`${command} --version`, { stdio: 'ignore' });
+      // Timeout after 5 seconds to prevent hanging on slow/unresponsive CLIs
+      execSync(`${command} --version`, { stdio: 'ignore', timeout: 5000 });
       return true;
     } catch (error) {
       return false;

@@ -1,5 +1,5 @@
 // src/router/routerConfig.ts
-// Load and parse YAML configuration for cli-orchestrator
+// Load and parse YAML configuration for CLI_Runner
 
 const fs = require("fs");
 const path = require("path");

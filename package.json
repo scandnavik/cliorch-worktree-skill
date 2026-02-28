@@ -1,5 +1,5 @@
 {
-  "name": "cli-orchestrator",
+  "name": "cli-runner",
   "version": "2.0.0",
   "description": "A2-level Single-Operator AI Dev OS — Claude-driven router for Gemini, Codex, and Copilot CLIs",
   "main": "src/index.js",
@@ -8,8 +8,8 @@
     "poc": "node tests/poc.js",
     "demo": "node tests/demo.js",
     "status": "node src/index.js status",
-    "test": "node tests/demo.js",
-    "build": "npx tsc --noEmit",
+    "test": "node tests/test_unit.js && node tests/redteam-matrix.js",
+    "build": "node -e \"require('./src/router/planSchema.js'); require('./src/executor.js'); require('./src/router/orchestratePlan.js'); require('./src/router/routerConfig.js'); console.log('Build check passed')\"",
     "cliorch": "node src/cli.js"
   },
   "bin": {

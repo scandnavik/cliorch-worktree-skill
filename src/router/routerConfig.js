@@ -1,5 +1,5 @@
 // src/router/routerConfig.js
-// Load and parse YAML configuration for cli-orchestrator
+// Load and parse YAML configuration for CLI_Runner
 // Runtime JS version
 
 const fs = require("fs");

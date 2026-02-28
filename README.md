@@ -1,4 +1,4 @@
-# cli-orchestrator
+# CLI_Runner
 
 > A2-level Single-Operator AI Dev OS — Claude as driver, routing tasks to Gemini / Codex / Copilot CLIs.
 
@@ -8,13 +8,13 @@ Task ──→ Plan ──→ Router ──→ Gate ──→ CLI Exec ──→
          decomposes config   check    codex/copilot merges
 ```
 
-**cli-orchestrator** is a hardened orchestration layer where Claude acts as the planning/judging brain and delegates work to worker CLIs (Gemini, Codex, Copilot). All steps are gated by security policies, stop conditions, and redaction rules.
+**CLI_Runner** is a hardened orchestration layer where Claude acts as the planning/judging brain and delegates work to worker CLIs (Gemini, Codex, Copilot). All steps are gated by security policies, stop conditions, and redaction rules.
 
 ## Quick Start
 
 ```bash
 # 1. Install
-cd cli-orchestrator && npm install
+cd CLI_Runner && npm install
 
 # 2. Plan a task
 npx cliorch plan --task "Build a REST API for user auth"

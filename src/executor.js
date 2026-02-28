@@ -1,10 +1,9 @@
 // src/executor.js
 // Executor Module - Safely executes CLI commands
 
-const { execFile, exec } = require('child_process');
+const { execFile } = require('child_process');
 const util = require('util');
 const execFilePromise = util.promisify(execFile);
-const execPromise = util.promisify(exec);
 
 class Executor {
   constructor(registry) {
@@ -35,6 +34,14 @@ class Executor {
       };
     }
 
+    // SECURITY: Validate prompt before execution to prevent injection
+    if (!this.validatePrompt(prompt)) {
+      return {
+        success: false,
+        error: `Prompt rejected: contains dangerous shell metacharacters`
+      };
+    }
+
     const command = cliInfo.command;
     const timeout = options.timeout || 30000; // 30 seconds default
 
@@ -51,45 +58,34 @@ class Executor {
         cmdArgs = [argsFormat, prompt];
       }
 
+      // Add dynamic model if specified by the strategy layer
+      if (options.model) {
+        if (command === 'node' && argsFormat === '-e') {
+          cmdArgs.push('--', '--model', options.model);
+        } else {
+          cmdArgs.push('--model', options.model);
+        }
+      }
+
       const cmdDisplay = `${command} ${cmdArgs.map(a => a === prompt ? `"${prompt}"` : a).join(' ')}`;
       console.log(`[${cliName}] Executing: ${cmdDisplay}`);
 
+      // SECURITY: Always use execFile with args array to prevent shell injection.
+      // On Windows, shell: true is needed for .cmd/.ps1 wrappers but execFile
+      // still keeps arguments properly separated (no string concatenation).
       const isWindows = process.platform === 'win32';
-      let stdout, stderr;
-
-      if (isWindows) {
-        // Windows: npm packages are .cmd/.ps1, need shell with proper quoting
-        const escaped = prompt.replace(/"/g, '\\"');
-        let shellCmd;
-        if (argsFormat === 'subcommand' && cliInfo.args_template) {
-          const tmpl = cliInfo.args_template.replace('{prompt}', `"${escaped}"`);
-          shellCmd = `${command} ${tmpl}`;
-        } else {
-          shellCmd = `${command} ${argsFormat} "${escaped}"`;
+      const result = await execFilePromise(
+        command,
+        cmdArgs,
+        {
+          timeout,
+          maxBuffer: 10 * 1024 * 1024,
+          encoding: 'utf-8',
+          shell: isWindows
         }
-        const result = await execPromise(
-          shellCmd,
-          {
-            timeout,
-            maxBuffer: 10 * 1024 * 1024,
-            encoding: 'utf-8'
-          }
-        );
-        stdout = result.stdout;
-        stderr = result.stderr;
-      } else {
-        const result = await execFilePromise(
-          command,
-          cmdArgs,
-          {
-            timeout,
-            maxBuffer: 10 * 1024 * 1024,
-            encoding: 'utf-8'
-          }
-        );
-        stdout = result.stdout;
-        stderr = result.stderr;
-      }
+      );
+      const stdout = result.stdout;
+      const stderr = result.stderr;
 
       return {
         success: true,
@@ -160,11 +156,13 @@ class Executor {
       return false;
     }
 
-    // Simple validation: no shell metacharacters for MVP
-    const dangerous = /[`$(){}[\]|&;]/;
+    // SECURITY: Reject prompts containing shell metacharacters to prevent injection.
+    // Since we use execFile (args array), parentheses/brackets are safe.
+    // Block: backtick, $( command substitution, pipe, ampersand, semicolon
+    const dangerous = /[`|&;]|\$\(/;
     if (dangerous.test(prompt)) {
-      console.warn('Warning: Prompt contains potentially dangerous characters');
-      // MVP: still allow but warn
+      console.error(`🚨 [SECURITY] Prompt rejected — dangerous shell metacharacters detected`);
+      return false;
     }
 
     return true;

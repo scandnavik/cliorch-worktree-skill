@@ -87,7 +87,7 @@ function isWallTimeExceeded(startTime: number, maxSec: number): boolean {
  * In real mode, it would shell out to CLIs.
  * In paper/dry-run mode, it validates structure only.
  */
-async function orchestratePlan(plan: any, options: { dryRun?: boolean; baseDir?: string } = {}) {
+async function orchestratePlan(plan: any, options: { dryRun?: boolean; baseDir?: string; executor?: any } = {}) {
   const baseDir = options.baseDir || process.cwd();
   const config = loadRouterConfig(path.join(baseDir, "config"));
 
@@ -102,6 +102,7 @@ async function orchestratePlan(plan: any, options: { dryRun?: boolean; baseDir?:
   const startTime = Date.now();
   const results: any[] = [];
   let aborted = false;
+  plan.status = "running";
 
   for (const step of plan.steps) {
     // Wall-time guard
@@ -160,33 +161,67 @@ async function orchestratePlan(plan: any, options: { dryRun?: boolean; baseDir?:
     while (attempt < maxAttempts) {
       attempt++;
 
-      if (options.dryRun) {
-        // Dry-run mode: validate only, simulate success
+      if (options.dryRun || !step.cli || !options.executor) {
+        // Dry-run mode or no executor provided: simulate pending/pass
         stepResult = {
           step: step.id,
-          status: "pass",
+          status: options.dryRun ? "pass" : "pending_execution",
           cli: step.cli,
           attempt,
-          dry_run: true
+          dry_run: options.dryRun || false,
+          message: `Would execute via ${step.cli || "claude_driver"}`
         };
         break;
       }
 
-      // Real execution would happen here via Executor
-      // For now, mark as requiring real CLI
-      stepResult = {
-        step: step.id,
-        status: "pending_execution",
-        cli: step.cli,
-        attempt,
-        message: `Would execute via ${step.cli || "claude_driver"}`
-      };
-      break;
+      // Real execution via Executor
+      try {
+        const timeout = plan.constraints.max_wall_time_sec * 1000;
+        const execResult = await options.executor.execute(step.cli, step.action, { timeout });
+        
+        if (execResult.success) {
+          stepResult = {
+            step: step.id,
+            status: "pass",
+            cli: step.cli,
+            attempt,
+            output: execResult.output,
+            exitCode: execResult.exitCode
+          };
+          break; // Success, break retry loop
+        } else {
+          // Execution failed but didn't throw exceptions
+          stepResult = {
+            step: step.id,
+            status: attempt < maxAttempts ? "pending_execution" : "failed",
+            cli: step.cli,
+            attempt,
+            error: execResult.error,
+            exitCode: execResult.exitCode,
+            output: execResult.output
+          };
+          // Continue loop for retry
+        }
+      } catch (err: any) {
+        stepResult = {
+          step: step.id,
+          status: attempt < maxAttempts ? "pending_execution" : "failed",
+          cli: step.cli,
+          attempt,
+          error: err.message
+        };
+      }
     }
 
-    // Redact output
-    if (stepResult && stepResult.output) {
-      stepResult.output = redactOutput(stepResult.output, config.policies.output_redaction_patterns);
+    // Redact output and format error message (Error Shaping concept)
+    if (stepResult) {
+      if (stepResult.output) {
+        stepResult.output = redactOutput(stepResult.output, config.policies.output_redaction_patterns);
+      }
+      if (stepResult.error && stepResult.status === "failed") {
+        // Basic Error Shaping logic
+        stepResult.error_formatted = `Command execution failed on attempt ${stepResult.attempt}: ${stepResult.error}. Output: ${stepResult.output || "None"}. Check CLI tool configuration or prompt syntax.`;
+      }
     }
 
     writeLog(paths.logDir, step.id, stepResult);
@@ -196,19 +231,25 @@ async function orchestratePlan(plan: any, options: { dryRun?: boolean; baseDir?:
     results.push(stepResult);
   }
 
-  // Save plan
+  // Save plan session state
+  const isSetupSuccess = !aborted && results.every((r: any) => r.status !== "blocked" && r.status !== "denied");
+  const isExecutionSuccess = isSetupSuccess && results.every((r: any) => r.status === "pass" || r.status === "pending_execution" || r.status === "skipped");
+  
+  plan.status = aborted ? "aborted" : (isExecutionSuccess ? "completed" : "failed");
+
   fs.mkdirSync(paths.planDir, { recursive: true });
   const planPath = path.join(paths.planDir, `${sessionId}.json`);
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
 
   return {
-    success: !aborted && results.every((r: any) => r.status !== "blocked" && r.status !== "denied"),
+    success: isExecutionSuccess,
     session_id: sessionId,
     plan_path: planPath,
     log_dir: paths.logDir,
     output_dir: paths.outputDir,
     wall_time_sec: (Date.now() - startTime) / 1000,
     steps: results,
+    state: plan.status,
     aborted
   };
 }

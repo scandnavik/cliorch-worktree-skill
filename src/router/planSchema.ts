@@ -1,5 +1,5 @@
 // src/router/planSchema.ts
-// Plan schema definition and validation for cli-orchestrator A2 OS
+// Plan schema definition and validation for CLI_Runner A2 OS
 
 /** Allowed worker CLIs — Claude is DRIVER ONLY, never a worker */
 const ALLOWED_CLIS = ["gemini", "codex", "copilot"] as const;
@@ -154,7 +154,7 @@ function isDeniedCommand(command: string, denyList: string[]): boolean {
     if (d.includes("|")) {
       const [prog, target] = d.split("|");
       const parts = normalized.split("|");
-      return parts.some((p, i) => p.trim().startsWith(prog) && parts[i + 1] && parts[i + 1].trim().startsWith(target));
+      return parts.some((p, i) => p.trim().includes(prog) && parts[i + 1] && parts[i + 1].trim().includes(target));
     }
     return normalized.includes(d);
   });

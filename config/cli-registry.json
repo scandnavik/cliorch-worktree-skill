@@ -1,0 +1,29 @@
+{
+    "gemini": {
+        "command": "node",
+        "args_format": "-e",
+        "capabilities": [
+            "code_generation",
+            "code_review",
+            "refactoring"
+        ],
+        "supports_file_input": true
+    },
+    "codex": {
+        "command": "node",
+        "args_format": "-e",
+        "capabilities": [
+            "code_generation"
+        ],
+        "supports_file_input": true
+    },
+    "copilot": {
+        "command": "node",
+        "args_format": "-e",
+        "capabilities": [
+            "code_generation",
+            "code_review"
+        ],
+        "supports_file_input": true
+    }
+}

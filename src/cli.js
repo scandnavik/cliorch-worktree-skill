@@ -1,30 +1,37 @@
 #!/usr/bin/env node
 // src/cli.js
-// CLI entry point for cli-orchestrator (cliorch / cli-orch)
+// CLI entry point for CLI_Runner (cliorch / cli-orch)
 
 const fs = require("fs");
 const path = require("path");
 const { validatePlan, ALLOWED_CLIS, GATE_TYPES, isDeniedCommand, isProtectedPath, redactOutput } = require("./router/planSchema.js");
 const { loadRouterConfig, loadChainsConfig, routeTask } = require("./router/routerConfig.js");
 const { orchestratePlan } = require("./router/orchestratePlan.js");
+const CodexDriver = require("./driver/codexDriver.js");
+const Executor = require("./executor.js");
+const CLIRegistry = require("./cli-registry.js");
 
 const BASE_DIR = path.join(__dirname, "..");
 const args = process.argv.slice(2);
 const command = args[0];
 
+const registry = new CLIRegistry(path.join(BASE_DIR, "config", "cli-registry.json"));
+const executor = new Executor(registry);
+
 function usage() {
   console.log(`
-cli-orchestrator (cliorch) — A2 Single-Operator AI Dev OS
-
-Commands:
-  cliorch plan --task "<text>"     Generate a plan JSON
-  cliorch run --plan "<path>"      Execute a plan
-  cliorch redteam --print          Print red-team checklist summary
-  cliorch status                   Show CLI registry status
-  cliorch config                   Show loaded router config
-
+CLI_Runner (cliorch) — A2 Single-Operator AI Dev OS
+`);
+  console.log("Commands:");
+  console.log("  cliorch do --task \"<text>\" [--strategy <name>]  [NEW] End-to-end task generation & execution");
+  console.log("  cliorch plan --task \"<text>\"                  Generate a manual draft plan JSON");
+  console.log("  cliorch run --plan \"<path>\" [--dry-run]       Execute a plan (--dry-run to simulate)");
+  console.log("  cliorch redteam --print                       Print red-team checklist summary");
+  console.log("  cliorch status                                Show CLI registry status");
+  console.log("  cliorch config                                Show loaded router config");
+  console.log("  cliorch models                                Fetch and display available dynamic model lists");
+  console.log(`
 Allowed CLIs: ${ALLOWED_CLIS.join(", ")}
-Claude = Driver ONLY (never a worker CLI)
 `);
 }
 
@@ -149,7 +156,8 @@ async function runCommand() {
   }
   const planPath = path.resolve(args[planIdx + 1]);
   const plan = JSON.parse(fs.readFileSync(planPath, "utf-8"));
-  const result = await orchestratePlan(plan, { dryRun: true, baseDir: BASE_DIR });
+  const dryRun = args.includes("--dry-run");
+  const result = await orchestratePlan(plan, { dryRun, baseDir: BASE_DIR, executor: dryRun ? undefined : executor });
   console.log(JSON.stringify(result, null, 2));
 }
 
@@ -173,7 +181,7 @@ function redteamCommand() {
     { id: "F2", name: "Large PR risk", check: "max_files_changed + max_steps bounded", pass: p.max_files_changed <= 50 && p.max_steps <= 8 }
   ];
 
-  console.log("\n=== Red-Team Checklist (cli-orchestrator A2) ===\n");
+  console.log("\n=== Red-Team Checklist (CLI_Runner A2) ===\n");
   console.log("CaseID | Result | Check");
   console.log("-------|--------|------");
   for (const c of cases) {
@@ -201,11 +209,124 @@ function configCommand() {
   console.log(JSON.stringify(config, null, 2));
 }
 
+/** End-to-end AI execution command */
+async function doCommand() {
+  const taskIdx = args.indexOf("--task");
+  if (taskIdx === -1 || !args[taskIdx + 1]) {
+    console.error(`Usage: cliorch do --task "<task description>" [--strategy <name>]`);
+    process.exit(1);
+  }
+  const task = args[taskIdx + 1];
+
+  const strategyIdx = args.indexOf("--strategy");
+  const strategyName = strategyIdx !== -1 && args[strategyIdx + 1] ? args[strategyIdx + 1] : "default";
+
+  console.log(`\n========================================`);
+  console.log(`🧠 [CLI_Runner] Task: "${task}"`);
+  console.log(`🧩 [Strategy] Loaded: ${strategyName}`);
+  console.log(`========================================`);
+
+  try {
+    // 1. Load Strategy Profile
+    const yaml = require("js-yaml");
+    const strategyPath = path.join(BASE_DIR, "config", "strategies.yaml");
+    const strategyDoc = yaml.load(fs.readFileSync(strategyPath, "utf-8"));
+    if (!strategyDoc.strategies[strategyName]) {
+      throw new Error(`Strategy '${strategyName}' not found in config/strategies.yaml`);
+    }
+    const profile = strategyDoc.strategies[strategyName];
+
+    // 2. Instantiate Dynamic Driver
+    let driver;
+    const managerCli = profile.manager.cli;
+    const managerModel = profile.manager.model;
+
+    if (managerCli === "claude") {
+      const ClaudeDriver = require("./driver/claudeDriver.js");
+      driver = new ClaudeDriver({ model: managerModel, strategyProfile: profile });
+    } else if (managerCli === "codex") {
+      const CodexDriver = require("./driver/codexDriver.js");
+      driver = new CodexDriver({ model: managerModel, strategyProfile: profile });
+    } else if (managerCli === "gemini") {
+      const GeminiDriver = require("./driver/geminiDriver.js");
+      driver = new GeminiDriver({ model: managerModel, strategyProfile: profile });
+    } else if (managerCli === "copilot") {
+      const CopilotDriver = require("./driver/copilotDriver.js");
+      driver = new CopilotDriver({ model: managerModel, strategyProfile: profile });
+    } else {
+      throw new Error(`Unsupported manager cli: ${managerCli}`);
+    }
+
+    // 3. Generate and Execute Plan
+    const plan = await driver.generatePlan(task);
+
+    console.log(`\n🚦 [Router Executing Plan] Session: ${plan.id}...`);
+    const result = await orchestratePlan(plan, {
+      baseDir: BASE_DIR,
+      executor: executor,
+      dryRun: false
+    });
+
+    console.log("\n--- RESULT ---");
+    console.log(`Success: ${result.success}`);
+    console.log(`Session State: ${result.state}`);
+  } catch (error) {
+    console.error("❌ Execution Failed:", error.message);
+  }
+}
+
+/** Fetch available models from multiple drivers */
+async function modelsCommand() {
+  console.log(`\n========================================`);
+  console.log(`🔍 [CLI_Runner] Fetching Available LLMs...`);
+  console.log(`========================================\n`);
+
+  try {
+    const GeminiDriver = require("./driver/geminiDriver.js");
+    const CodexDriver = require("./driver/codexDriver.js");
+    const ClaudeDriver = require("./driver/claudeDriver.js");
+    const CopilotDriver = require("./driver/copilotDriver.js");
+
+    const drivers = [
+      new GeminiDriver(),
+      new CodexDriver(),
+      new ClaudeDriver(),
+      new CopilotDriver()
+    ];
+
+    const results = await Promise.allSettled(drivers.map(d => d.getAvailableModels()));
+
+    results.forEach(res => {
+      if (res.status === "fulfilled" && res.value && res.value.models) {
+        console.log(`\nProvider: [${res.value.provider.toUpperCase()}]`);
+        if (res.value.models.length === 0) {
+          console.log(`  (No models found or empty response)`);
+          return;
+        }
+        res.value.models.forEach(m => {
+          console.log(`  - \x1b[36m${m.id}\x1b[0m [Tier: ${m.tier}]`);
+          console.log(`    Best target: ${m.best_for.join(", ")}`);
+          if (m.description) {
+            console.log(`    Desc: ${m.description}`);
+          }
+        });
+      } else {
+        console.warn(`\n[Warning] Failed to fetch models for a provider:`, res.reason);
+      }
+    });
+    console.log("\n(Tip: Run 'cliorch do --task \"...\" --strategy <name>' to dispatch tasks)\n");
+  } catch (err) {
+    console.error("❌ Failed to compile models:", err.message);
+  }
+}
+
 // Main dispatch
 switch (command) {
+  case "do": doCommand().catch(e => { console.error(e); process.exit(1); }); break;
   case "plan": planCommand(); break;
   case "run": runCommand().catch(e => { console.error(e); process.exit(1); }); break;
   case "redteam": redteamCommand(); break;
+  case "models": modelsCommand().catch(e => { console.error(e); process.exit(1); }); break;
   case "status": statusCommand(); break;
   case "config": configCommand(); break;
   default: usage();

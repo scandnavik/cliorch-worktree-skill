@@ -27,14 +27,14 @@ class Orchestrator {
       };
     }
 
-    // Step 2: Execute CLI command
-    const executionResult = await this.executor.execute(cliInfo.command, input, options);
+    // Step 2: Execute CLI command — pass registry key (cliInfo.name), NOT cliInfo.command
+    const executionResult = await this.executor.execute(cliInfo.name, input, options);
     if (!executionResult.success) {
       return {
         success: false,
         error: executionResult.error,
         taskType,
-        cliUsed: cliInfo.command,
+        cliUsed: cliInfo.name,
         duration: Date.now() - startTime
       };
     }
@@ -49,7 +49,7 @@ class Orchestrator {
     const finalResult = {
       success: true,
       taskType,
-      cliUsed: cliInfo.command,
+      cliUsed: cliInfo.name,
       timestamp: new Date().toISOString(),
       duration: Date.now() - startTime,
       result: {
@@ -92,7 +92,7 @@ class Orchestrator {
 
     const instruction = taskType === 'review' ? 'Review this code' : 'Process this file';
     const executionResult = await this.executor.executeWithFile(
-      cliInfo.command, filePath, instruction
+      cliInfo.name, filePath, instruction
     );
 
     if (!executionResult.success) {
@@ -100,7 +100,7 @@ class Orchestrator {
         success: false,
         error: executionResult.error,
         taskType,
-        cliUsed: cliInfo.command,
+        cliUsed: cliInfo.name,
         duration: Date.now() - startTime
       };
     }
@@ -111,7 +111,7 @@ class Orchestrator {
     return {
       success: true,
       taskType,
-      cliUsed: cliInfo.command,
+      cliUsed: cliInfo.name,
       timestamp: new Date().toISOString(),
       duration: Date.now() - startTime,
       result: {
