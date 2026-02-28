@@ -69,6 +69,21 @@
       "timestamp": "2026-02-28T08:48:27.520Z",
       "issue": "Step claude execution failed: ANTHROPIC_API_KEY not set. Required for claude api_mode. (Target Action: Stage: Review\nTask: say hello world\nPerform strict code review and report risks/fixes.)",
       "resolution": "Command syntax/logic error. Need to rewrite action."
+    },
+    {
+      "timestamp": "2026-02-28T09:02:57.468Z",
+      "issue": "Step gemini execution failed: Command failed: node -e Stage: Ideation Task: interactive session Generate diverse solution ideas and tradeoffs. -- --model gemini-3.1-pro-preview\n[eval]:1\r\nStage:\r\n      \r\nExpression expected\r\n\r\nSyntaxError: Unexpected end of input\r\n    at makeContextifyScript (node:internal/vm:194:14)\r\n    at compileScript (node:internal/process/execution:388:10)\r\n    at evalTypeScript (node:internal/process/execution:260:22)\r\n    at node:internal/main/eval_string:71:3\r\n\r\nNode.js v24.11.1\r\n (Target Action: Stage: Ideation\nTask: interactive session\nGenerate diverse solution ideas and tradeoffs.)",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
+    },
+    {
+      "timestamp": "2026-02-28T09:02:57.469Z",
+      "issue": "Step copilot execution failed: Command failed: node -e Stage: Execution Task: interactive session Implement the selected approach with concrete code changes. -- --model copilot-default\n[eval]:1\r\nStage:\r\n      \r\nExpression expected\r\n\r\nSyntaxError: Unexpected end of input\r\n    at makeContextifyScript (node:internal/vm:194:14)\r\n    at compileScript (node:internal/process/execution:388:10)\r\n    at evalTypeScript (node:internal/process/execution:260:22)\r\n    at node:internal/main/eval_string:71:3\r\n\r\nNode.js v24.11.1\r\n (Target Action: Stage: Execution\nTask: interactive session\nImplement the selected approach with concrete code changes.)",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
+    },
+    {
+      "timestamp": "2026-02-28T09:02:57.469Z",
+      "issue": "Step codex execution failed: Command failed: node -e Stage: Review Task: interactive session Perform strict code review and report risks/fixes. -- --model gpt-5.2\n[eval]:1\r\nStage:\r\n      \r\nExpression expected\r\n\r\nSyntaxError: Unexpected end of input\r\n    at makeContextifyScript (node:internal/vm:194:14)\r\n    at compileScript (node:internal/process/execution:388:10)\r\n    at evalTypeScript (node:internal/process/execution:260:22)\r\n    at node:internal/main/eval_string:71:3\r\n\r\nNode.js v24.11.1\r\n (Target Action: Stage: Review\nTask: interactive session\nPerform strict code review and report risks/fixes.)",
+      "resolution": "Command syntax/logic error. Need to rewrite action."
     }
   ]
 }

@@ -14,8 +14,10 @@
         "supports_file_input": false
     },
     "gemini": {
-        "command": "node",
-        "args_format": "-e",
+        "command": "gemini",
+        "args_format": "-p",
+        "api_mode": "mock",
+        "default_model": "gemini-3.1-pro-preview",
         "capabilities": [
             "code_generation",
             "code_review",
@@ -24,16 +26,20 @@
         "supports_file_input": true
     },
     "codex": {
-        "command": "node",
-        "args_format": "-e",
+        "command": "codex",
+        "args_format": "-p",
+        "api_mode": "mock",
+        "default_model": "gpt-5.2",
         "capabilities": [
             "code_generation"
         ],
         "supports_file_input": true
     },
     "copilot": {
-        "command": "node",
-        "args_format": "-e",
+        "command": "copilot",
+        "args_format": "-p",
+        "api_mode": "mock",
+        "default_model": "copilot-default",
         "capabilities": [
             "code_generation",
             "code_review"

@@ -47,6 +47,11 @@ class Executor {
       return this._executeViaAnthropicAPI(cliName, prompt, options, cliInfo);
     }
 
+    // Mock mode: simulate execution without a real CLI
+    if (cliInfo.api_mode === 'mock') {
+      return this._executeViaMock(cliName, prompt, options, cliInfo);
+    }
+
     const command = cliInfo.command;
     const timeout = options.timeout || 30000; // 30 seconds default
 
@@ -206,7 +211,25 @@ class Executor {
   }
 
   /**
-   * Execute with file input (for CLI tools that support @filename)
+   * Mock execution for providers without real CLI/API installed.
+   * Returns a simulated successful response containing the prompt.
+   */
+  _executeViaMock(cliName, prompt, options, cliInfo) {
+    const model = options.model || cliInfo.default_model || 'mock-model';
+    console.log(`[${cliName}] Mock execution (model: ${model})`);
+    const output = `[MOCK ${cliName.toUpperCase()} / ${model}]\nPrompt received:\n${prompt}\n\n(Mock response: task acknowledged, no real API call made)`;
+    return Promise.resolve({
+      success: true,
+      cliName,
+      command: `mock:${cliName}`,
+      prompt,
+      output,
+      stderr: '',
+      exitCode: 0
+    });
+  }
+
+  /**
    * @param {string} cliName - Name of the CLI to execute
    * @param {string} filePath - Path to the file to process
    * @param {string} instruction - What to do with the file

@@ -43,6 +43,17 @@ class CLIRegistry {
       return false;
     }
 
+    // Mock-mode CLIs are always treated as "installed"
+    if (this.registry[cliName].api_mode === 'mock') {
+      return true;
+    }
+
+    // Anthropic API mode: available if ANTHROPIC_API_KEY is set, else treat as installed
+    // (executor will report the error at runtime if key is missing)
+    if (this.registry[cliName].api_mode === 'anthropic') {
+      return true;
+    }
+
     const command = this.registry[cliName].command;
     try {
       // Timeout after 5 seconds to prevent hanging on slow/unresponsive CLIs
