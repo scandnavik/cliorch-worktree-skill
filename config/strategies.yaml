@@ -6,6 +6,11 @@ strategies:
     manager: 
       cli: claude
       model: claude-opus-4-6
+    flow:
+      - ideation
+      - converge
+      - execution
+      - review
     roles:
       ideation: 
         cli: gemini
@@ -13,15 +18,46 @@ strategies:
       execution: 
         cli: codex
         model: gpt-5.2
+      review:
+        cli: codex
+        model: gpt-5.2
       version_control: 
         cli: copilot
+        model: copilot-default
 
   fast_code:
     description: "跳過發想，只做快速純代碼修正"
     manager: 
       cli: codex
       model: gpt-5 mini
+    flow:
+      - execution
+      - review
     roles:
       execution:
         cli: codex
         model: gpt-5 mini
+      review:
+        cli: codex
+        model: gpt-5 mini
+
+  claude_gemini_copilot_codex:
+    description: "Claude 發起 -> Gemini 發散 -> 收斂 -> Copilot 開發 -> Codex Review"
+    manager:
+      cli: claude
+      model: claude-opus-4-6
+    flow:
+      - ideation
+      - converge
+      - execution
+      - review
+    roles:
+      ideation:
+        cli: gemini
+        model: gemini-3.1-pro-preview
+      execution:
+        cli: copilot
+        model: copilot-default
+      review:
+        cli: codex
+        model: gpt-5.2

@@ -4,12 +4,22 @@
 
 const fs = require("fs");
 const path = require("path");
-const { validatePlan, ALLOWED_CLIS, GATE_TYPES, isDeniedCommand, isProtectedPath, redactOutput } = require("./router/planSchema.js");
-const { loadRouterConfig, loadChainsConfig, routeTask } = require("./router/routerConfig.js");
+const readline = require("readline");
+const { validatePlan, ALLOWED_CLIS, GATE_TYPES } = require("./router/planSchema.js");
+const { loadRouterConfig, routeTask } = require("./router/routerConfig.js");
 const { orchestratePlan } = require("./router/orchestratePlan.js");
-const CodexDriver = require("./driver/codexDriver.js");
 const Executor = require("./executor.js");
 const CLIRegistry = require("./cli-registry.js");
+const {
+  DEFAULT_FLOW,
+  STAGE_DEFS,
+  listSupportedStages,
+  parseFlow,
+  parseLlmMap,
+  parseManager,
+  buildDefaultAssignmentsFromStrategy,
+  buildRuntimePlan
+} = require("./strategy/runtimeStrategy.js");
 
 const BASE_DIR = path.join(__dirname, "..");
 const args = process.argv.slice(2);
@@ -23,9 +33,13 @@ function usage() {
 CLI_Runner (cliorch) — A2 Single-Operator AI Dev OS
 `);
   console.log("Commands:");
-  console.log("  cliorch do --task \"<text>\" [--strategy <name>]  [NEW] End-to-end task generation & execution");
+  console.log("  cliorch do --task \"<text>\" [--strategy <name>] [--interactive]");
+  console.log("           [--flow \"ideation,converge,execution,review\"]");
+  console.log("           [--llm-map \"ideation=gemini:gemini-3.1-pro,execution=codex:gpt-5.2,review=codex:gpt-5.2\"]");
+  console.log("           [--manager \"claude:claude-opus-4-6\"] [--dry-run]");
   console.log("  cliorch plan --task \"<text>\"                  Generate a manual draft plan JSON");
   console.log("  cliorch run --plan \"<path>\" [--dry-run]       Execute a plan (--dry-run to simulate)");
+  console.log("  cliorch options                               Show strategy / stage / LLM selection options");
   console.log("  cliorch redteam --print                       Print red-team checklist summary");
   console.log("  cliorch status                                Show CLI registry status");
   console.log("  cliorch config                                Show loaded router config");
@@ -33,6 +47,188 @@ CLI_Runner (cliorch) — A2 Single-Operator AI Dev OS
   console.log(`
 Allowed CLIs: ${ALLOWED_CLIS.join(", ")}
 `);
+}
+
+function getArgValue(flag) {
+  const idx = args.indexOf(flag);
+  if (idx === -1) return null;
+  return args[idx + 1] || null;
+}
+
+function loadStrategiesDoc() {
+  const yaml = require("js-yaml");
+  const strategyPath = path.join(BASE_DIR, "config", "strategies.yaml");
+  return yaml.load(fs.readFileSync(strategyPath, "utf-8"));
+}
+
+function loadModelCatalog() {
+  const fallback = {
+    claude: [
+      "claude-opus-4-6",
+      "claude-sonnet-4-6",
+      "claude-haiku-3-5"
+    ],
+    gemini: [
+      "gemini-3.1-pro-preview",
+      "gemini-3.1-flash",
+      "gemini-2.5-flash"
+    ],
+    codex: [
+      "gpt-5.3",
+      "gpt-5.2",
+      "gpt-5 mini"
+    ],
+    copilot: [
+      "copilot-default",
+      "gpt-4"
+    ]
+  };
+
+  const catalogPath = path.join(BASE_DIR, "config", "model-catalog.json");
+  if (!fs.existsSync(catalogPath)) return fallback;
+
+  try {
+    const loaded = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+    return { ...fallback, ...loaded };
+  } catch {
+    return fallback;
+  }
+}
+
+function optionsCommand() {
+  const strategiesDoc = loadStrategiesDoc();
+  const modelCatalog = loadModelCatalog();
+
+  console.log("\n=== Strategy Options ===");
+  Object.entries(strategiesDoc.strategies || {}).forEach(([name, s]) => {
+    const flow = Array.isArray(s.flow) && s.flow.length > 0 ? s.flow.join(" -> ") : DEFAULT_FLOW.join(" -> ");
+    console.log(`- ${name}`);
+    console.log(`  desc: ${s.description || "-"}`);
+    console.log(`  manager: ${s.manager?.cli || "claude"}:${s.manager?.model || "-"}`);
+    console.log(`  flow: ${flow}`);
+  });
+
+  console.log("\n=== Stage Options ===");
+  listSupportedStages().forEach(stage => {
+    const kind = STAGE_DEFS[stage].kind;
+    console.log(`- ${stage} (${kind})`);
+  });
+
+  console.log("\n=== LLM Options ===");
+  Object.entries(modelCatalog).forEach(([provider, models]) => {
+    console.log(`- ${provider}:`);
+    models.forEach(m => console.log(`  - ${m}`));
+  });
+
+  console.log("\nExample:");
+  console.log("cliorch do --task \"Refactor auth module\" --flow \"ideation,converge,execution,review\" --llm-map \"ideation=gemini:gemini-3.1-pro-preview,execution=copilot:copilot-default,review=codex:gpt-5.2\" --manager \"claude:claude-opus-4-6\"");
+}
+
+function askLine(rl, question) {
+  return new Promise(resolve => rl.question(question, answer => resolve(answer)));
+}
+
+async function runInteractiveSelection(strategiesDoc, modelCatalog, defaultStrategyName) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    console.log("\n=== Interactive Strategy Selection ===");
+    const modeRaw = await askLine(
+      rl,
+      "Mode? [1] strategy preset  [2] custom flow (default 1): "
+    );
+    const mode = (modeRaw || "1").trim() === "2" ? "custom" : "preset";
+
+    if (mode === "preset") {
+      const names = Object.keys(strategiesDoc.strategies || {});
+      names.forEach((n, i) => {
+        const s = strategiesDoc.strategies[n];
+        console.log(`  [${i + 1}] ${n} - ${s.description || ""}`);
+      });
+      const presetRaw = await askLine(
+        rl,
+        `Choose strategy index (default ${defaultStrategyName}): `
+      );
+
+      let strategyName = defaultStrategyName;
+      const idx = parseInt((presetRaw || "").trim(), 10);
+      if (!Number.isNaN(idx) && idx >= 1 && idx <= names.length) {
+        strategyName = names[idx - 1];
+      }
+
+      const managerRaw = await askLine(
+        rl,
+        `Optional manager override cli:model (Enter to keep strategy manager): `
+      );
+      const flowRaw = await askLine(
+        rl,
+        `Optional flow override (comma stages, Enter to keep strategy flow): `
+      );
+      const llmMapRaw = await askLine(
+        rl,
+        `Optional llm-map override stage=cli:model,... (Enter to keep strategy roles): `
+      );
+      return {
+        mode,
+        strategyName,
+        managerOverride: managerRaw && managerRaw.trim() ? managerRaw.trim() : null,
+        flowOverride: flowRaw && flowRaw.trim() ? flowRaw.trim() : null,
+        llmMapOverride: llmMapRaw && llmMapRaw.trim() ? llmMapRaw.trim() : null
+      };
+    }
+
+    const managerCliChoices = ["claude", "gemini", "codex", "copilot"];
+    managerCliChoices.forEach((c, i) => console.log(`  [${i + 1}] ${c}`));
+    const managerCliRaw = await askLine(rl, "Choose manager CLI (default claude): ");
+    let managerCli = "claude";
+    const managerCliIdx = parseInt((managerCliRaw || "").trim(), 10);
+    if (!Number.isNaN(managerCliIdx) && managerCliIdx >= 1 && managerCliIdx <= managerCliChoices.length) {
+      managerCli = managerCliChoices[managerCliIdx - 1];
+    }
+
+    const managerModels = modelCatalog[managerCli] || [];
+    managerModels.forEach((m, i) => console.log(`  [${i + 1}] ${m}`));
+    const managerModelRaw = await askLine(
+      rl,
+      `Choose manager model index or input model name (default ${managerModels[0] || "n/a"}): `
+    );
+    let managerModel = managerModels[0] || "default-model";
+    const mIdx = parseInt((managerModelRaw || "").trim(), 10);
+    if (!Number.isNaN(mIdx) && mIdx >= 1 && mIdx <= managerModels.length) {
+      managerModel = managerModels[mIdx - 1];
+    } else if (managerModelRaw && managerModelRaw.trim()) {
+      managerModel = managerModelRaw.trim();
+    }
+
+    const flowRaw = await askLine(
+      rl,
+      `Flow order (comma-separated, supported: ${listSupportedStages().join(", ")}; default ${DEFAULT_FLOW.join(",")}): `
+    );
+    const flow = parseFlow(flowRaw || DEFAULT_FLOW.join(","));
+
+    const llmMapEntries = [];
+    for (const stage of flow) {
+      const def = STAGE_DEFS[stage];
+      if (def.kind !== "worker") continue;
+
+      const input = await askLine(
+        rl,
+        `Stage "${stage}" LLM mapping cli:model (e.g. codex:gpt-5.2, Enter to skip): `
+      );
+      if (input && input.trim()) {
+        llmMapEntries.push(`${stage}=${input.trim()}`);
+      }
+    }
+
+    return {
+      mode,
+      manager: `${managerCli}:${managerModel}`,
+      flow: flow.join(","),
+      llmMap: llmMapEntries.join(",")
+    };
+  } finally {
+    rl.close();
+  }
 }
 
 /** Generate a plan from task text */
@@ -211,60 +407,87 @@ function configCommand() {
 
 /** End-to-end AI execution command */
 async function doCommand() {
-  const taskIdx = args.indexOf("--task");
-  if (taskIdx === -1 || !args[taskIdx + 1]) {
+  const task = getArgValue("--task");
+  if (!task) {
     console.error(`Usage: cliorch do --task "<task description>" [--strategy <name>]`);
     process.exit(1);
   }
-  const task = args[taskIdx + 1];
 
-  const strategyIdx = args.indexOf("--strategy");
-  const strategyName = strategyIdx !== -1 && args[strategyIdx + 1] ? args[strategyIdx + 1] : "default";
+  let strategyName = getArgValue("--strategy") || "default";
+  let flowArg = getArgValue("--flow");
+  let llmMapArg = getArgValue("--llm-map");
+  let managerArg = getArgValue("--manager");
+  const managerCliArg = getArgValue("--manager-cli");
+  const managerModelArg = getArgValue("--manager-model");
+  const interactive = args.includes("--interactive");
+  const dryRun = args.includes("--dry-run");
 
   console.log(`\n========================================`);
   console.log(`🧠 [CLI_Runner] Task: "${task}"`);
-  console.log(`🧩 [Strategy] Loaded: ${strategyName}`);
   console.log(`========================================`);
 
   try {
-    // 1. Load Strategy Profile
-    const yaml = require("js-yaml");
-    const strategyPath = path.join(BASE_DIR, "config", "strategies.yaml");
-    const strategyDoc = yaml.load(fs.readFileSync(strategyPath, "utf-8"));
+    const strategyDoc = loadStrategiesDoc();
+    const modelCatalog = loadModelCatalog();
+
+    if (interactive) {
+      const selected = await runInteractiveSelection(strategyDoc, modelCatalog, strategyName);
+      if (selected.mode === "preset") {
+        strategyName = selected.strategyName;
+        if (selected.managerOverride) managerArg = selected.managerOverride;
+        if (selected.flowOverride) flowArg = selected.flowOverride;
+        if (selected.llmMapOverride) llmMapArg = selected.llmMapOverride;
+      } else {
+        flowArg = selected.flow;
+        llmMapArg = selected.llmMap;
+        managerArg = selected.manager;
+      }
+    }
+
     if (!strategyDoc.strategies[strategyName]) {
       throw new Error(`Strategy '${strategyName}' not found in config/strategies.yaml`);
     }
     const profile = strategyDoc.strategies[strategyName];
+    const routerConfig = loadRouterConfig(path.join(BASE_DIR, "config"));
 
-    // 2. Instantiate Dynamic Driver
-    let driver;
-    const managerCli = profile.manager.cli;
-    const managerModel = profile.manager.model;
-
-    if (managerCli === "claude") {
-      const ClaudeDriver = require("./driver/claudeDriver.js");
-      driver = new ClaudeDriver({ model: managerModel, strategyProfile: profile });
-    } else if (managerCli === "codex") {
-      const CodexDriver = require("./driver/codexDriver.js");
-      driver = new CodexDriver({ model: managerModel, strategyProfile: profile });
-    } else if (managerCli === "gemini") {
-      const GeminiDriver = require("./driver/geminiDriver.js");
-      driver = new GeminiDriver({ model: managerModel, strategyProfile: profile });
-    } else if (managerCli === "copilot") {
-      const CopilotDriver = require("./driver/copilotDriver.js");
-      driver = new CopilotDriver({ model: managerModel, strategyProfile: profile });
-    } else {
-      throw new Error(`Unsupported manager cli: ${managerCli}`);
+    if (managerCliArg || managerModelArg) {
+      const mCli = managerCliArg || profile.manager?.cli || "claude";
+      const mModel = managerModelArg || profile.manager?.model || "claude-opus-4-6";
+      managerArg = `${mCli}:${mModel}`;
     }
 
-    // 3. Generate and Execute Plan
-    const plan = await driver.generatePlan(task);
+    const profileFlow = Array.isArray(profile.flow) && profile.flow.length > 0
+      ? profile.flow
+      : DEFAULT_FLOW;
+    const flow = parseFlow(flowArg || profileFlow.join(","), profileFlow);
+
+    const defaultManager = {
+      cli: profile.manager?.cli || "claude",
+      model: profile.manager?.model || "claude-opus-4-6"
+    };
+    const manager = parseManager(managerArg, defaultManager);
+
+    const defaultAssignments = buildDefaultAssignmentsFromStrategy(profile);
+    const overrideAssignments = parseLlmMap(llmMapArg);
+    const stageAssignments = { ...defaultAssignments, ...overrideAssignments };
+
+    console.log(`🧩 [Strategy] ${strategyName}`);
+    console.log(`🧭 [Flow] ${flow.join(" -> ")}`);
+    console.log(`🎛️  [Manager] ${manager.cli}:${manager.model}`);
+
+    const plan = buildRuntimePlan({
+      task,
+      routerConfig,
+      manager,
+      flow,
+      stageAssignments
+    });
 
     console.log(`\n🚦 [Router Executing Plan] Session: ${plan.id}...`);
     const result = await orchestratePlan(plan, {
       baseDir: BASE_DIR,
       executor: executor,
-      dryRun: false
+      dryRun
     });
 
     console.log("\n--- RESULT ---");
@@ -325,6 +548,7 @@ switch (command) {
   case "do": doCommand().catch(e => { console.error(e); process.exit(1); }); break;
   case "plan": planCommand(); break;
   case "run": runCommand().catch(e => { console.error(e); process.exit(1); }); break;
+  case "options": optionsCommand(); break;
   case "redteam": redteamCommand(); break;
   case "models": modelsCommand().catch(e => { console.error(e); process.exit(1); }); break;
   case "status": statusCommand(); break;

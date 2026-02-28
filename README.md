@@ -19,8 +19,14 @@ cd CLI_Runner && npm install
 # 2. Plan a task
 npx cliorch plan --task "Build a REST API for user auth"
 
+# 2.5 Show strategy / flow / LLM options
+npx cliorch options
+
 # 3. Execute a plan
 npx cliorch run --plan plans/latest.json
+
+# 3.5 Execute with interactive strategy + LLM selection
+npx cliorch do --task "Refactor auth flow and review regressions" --interactive
 
 # 4. Red-team validation
 npx cliorch redteam --print
@@ -36,6 +42,7 @@ npm run status
 | **Router Config** | Load YAML routing + policies | `src/router/routerConfig.ts` |
 | **Plan Schema** | Validate plan structure + gates | `src/router/planSchema.ts` |
 | **Orchestrate Plan** | Execute steps with gating + guards | `src/router/orchestratePlan.ts` |
+| **Runtime Strategy** | Build variable stage-order plans + per-stage LLM mapping | `src/strategy/runtimeStrategy.js` |
 | **CLI Registry** | Detect installed CLIs, capability match | `src/cli-registry.js` |
 | **Executor** | Subprocess calls, timeout, error capture | `src/executor.js` |
 

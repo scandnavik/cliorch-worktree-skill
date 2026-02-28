@@ -54,7 +54,9 @@ function validatePlan(plan) {
 
       // Role-specific validation
       if (step.role === "worker") {
-        // The previous `if (!step.cli || !ALLOWED_CLIS.includes(step.cli))` is now covered by the general validation above.
+        if (!step.cli || !ALLOWED_CLIS.includes(step.cli)) {
+          errors.push(`Step ${step.id}: worker steps must use one of [${ALLOWED_CLIS.join(", ")}]`);
+        }
         if (step.cli === "copilot" && !step.requires_patch) {
           errors.push(`Step ${step.id}: copilot steps must have requires_patch=true`);
         }

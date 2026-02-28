@@ -20,7 +20,7 @@ Do NOT manually generate large boilerplate or use raw `bash` for complex operati
 
 ## How to use this skill
 
-Execute the following Node.js command in the terminal to invoke the CLI_Runner's task orchestration engine:
+Execute the following command to invoke CLI_Runner's orchestration engine:
 
 ```bash
 node src/cli.js do --task "<describe the task context completely>" --strategy <strategy_name>
@@ -29,8 +29,26 @@ node src/cli.js do --task "<describe the task context completely>" --strategy <s
 ### Strategy Selection Guidelines
 
 - If the user explicitly asks to use a specific strategy, pass `--strategy <name>`.
-- If the user doesn't specify but the task is just for simple generation or scripting, use `--strategy fast_code`.
-- For standard processing, you can omit the flag or use `--strategy default`.
+- If the user doesn't specify, first show available options by running:
+
+```bash
+node src/cli.js options
+```
+
+- If the user wants to choose the sequence and LLM interactively, run:
+
+```bash
+node src/cli.js do --task "<task>" --interactive
+```
+
+- If the user already gave exact sequence/model mapping, run with explicit params:
+
+```bash
+node src/cli.js do --task "<task>" \
+  --flow "ideation,converge,execution,review" \
+  --llm-map "ideation=gemini:gemini-3.1-pro-preview,execution=copilot:copilot-default,review=codex:gpt-5.2" \
+  --manager "claude:claude-opus-4-6"
+```
 
 ### How it works behind the scenes
 

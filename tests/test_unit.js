@@ -110,6 +110,15 @@ test("rejects copilot step without requires_patch", () => {
   assert.ok(errors.some(e => e.includes("requires_patch")));
 });
 
+test("rejects worker step without cli", () => {
+  const errors = validatePlan({
+    id: "test", task: "test",
+    steps: [{ id: "s1", role: "worker", action: "test", gate: null }],
+    constraints: { max_steps: 8, copilot_freeform: false, copilot_requires_patch: true }
+  });
+  assert.ok(errors.some(e => e.includes("worker steps must use one of")));
+});
+
 test("rejects copilot_freeform=true", () => {
   const errors = validatePlan({
     id: "test", task: "test",
