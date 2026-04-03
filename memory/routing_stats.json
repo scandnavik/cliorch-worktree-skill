@@ -1,8 +1,0 @@
-{
-  "routing_stats": {
-    "gemini": { "total": 0, "success": 0, "fail": 0 },
-    "codex": { "total": 0, "success": 0, "fail": 0 },
-    "copilot": { "total": 0, "success": 0, "fail": 0 }
-  },
-  "last_updated": null
-}

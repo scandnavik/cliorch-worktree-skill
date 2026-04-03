@@ -1,6 +1,12 @@
 node_modules/
+package-lock.json
 logs/
 outputs/
-plans/*.json
+plans/
+tmp_write_check/
+.cliorch/
+.wt/
 .env*
 *.log
+CLAUDE.md
+DELIVERY_REPORT.md

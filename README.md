@@ -1,78 +1,72 @@
-# CLI_Runner
+# CLI_Runner (cliorch) v3
 
-> A2-level Single-Operator AI Dev OS — Claude as driver, routing tasks to Gemini / Codex / Copilot CLIs.
+Thin dispatcher that delegates coding tasks to local CLI agents — **codex**, **gemini**, **copilot**.
 
-```
-Task ──→ Plan ──→ Router ──→ Gate ──→ CLI Exec ──→ Integrate ──→ Output
-         Claude    YAML      policy   gemini/      Claude        result
-         decomposes config   check    codex/copilot merges
-```
-
-**CLI_Runner** is a hardened orchestration layer where Claude acts as the planning/judging brain and delegates work to worker CLIs (Gemini, Codex, Copilot). All steps are gated by security policies, stop conditions, and redaction rules.
-
-## Quick Start
-
-```bash
-# 1. Install
-cd CLI_Runner && npm install
-
-# 2. Plan a task
-npx cliorch plan --task "Build a REST API for user auth"
-
-# 2.5 Show strategy / flow / LLM options
-npx cliorch options
-
-# 3. Execute a plan
-npx cliorch run --plan plans/latest.json
-
-# 3.5 Execute with interactive strategy + LLM selection
-npx cliorch do --task "Refactor auth flow and review regressions" --interactive
-
-# 4. Red-team validation
-npx cliorch redteam --print
-
-# 5. Check CLI status
-npm run status
-```
+Designed to be called by Claude Code (or any AI orchestrator) to save tokens by offloading execution work to free/cheaper CLIs.
 
 ## Architecture
 
-| Module | Responsibility | Code |
-|--------|---------------|------|
-| **Router Config** | Load YAML routing + policies | `src/router/routerConfig.ts` |
-| **Plan Schema** | Validate plan structure + gates | `src/router/planSchema.ts` |
-| **Orchestrate Plan** | Execute steps with gating + guards | `src/router/orchestratePlan.ts` |
-| **Runtime Strategy** | Build variable stage-order plans + per-stage LLM mapping | `src/strategy/runtimeStrategy.js` |
-| **CLI Registry** | Detect installed CLIs, capability match | `src/cli-registry.js` |
-| **Executor** | Subprocess calls, timeout, error capture | `src/executor.js` |
+```
+Claude Code (brain)  →  CLI_Runner (dispatcher)  →  codex / gemini / copilot (hands)
+                              ↕
+                     .cliorch/tasks/*.json (status tracking)
+```
 
-### Allowed Worker CLIs
+Claude Code handles planning, decomposition, and quality control.
+CLI_Runner routes the task to the right CLI and tracks completion.
 
-| CLI | Role |
-|-----|------|
-| Gemini | Research, multimodal, large context |
-| Codex | Precision coding, debugging |
-| Copilot | Repo operations, PR (patch-only) |
+## Prerequisites
 
-**Claude = Driver only** (planner / judge / integrator). Never routed as worker.
+- Node.js 18+
+- At least one of: `codex`, `gemini`, `copilot` installed globally
 
-## Security Policies
+## Usage
 
-- Protected paths enforced (config/, memory/, .env*, etc.)
-- Deny-listed commands blocked (printenv, curl\|bash, etc.)
-- Output redaction for secrets
-- Non-bypassable gates: secrets, ci, auth, network
-- Copilot requires patch reference (no freeform)
-- Max steps: 8, Max files changed: 50, Wall time: 900s
-
-## Development
+### Single Task
 
 ```bash
-npm run demo      # Simulated demo (no CLI needed)
-npm run status    # Check CLI availability
-npm test          # Run tests
+node src/cli.js run --task "Implement auth module" --cli codex --dir /projects/myapp
+```
+
+### Check Available CLIs
+
+```bash
+node src/cli.js status
+```
+
+### Multi-Worktree (Parallel)
+
+```bash
+# Dispatch sub-tasks into isolated worktrees
+bash dispatch.sh /projects/myapp feat-auth "Implement auth" codex
+bash dispatch.sh /projects/myapp feat-tests "Write tests" gemini
+
+# Monitor progress
+node wt-status.js /projects/myapp
+
+# Merge completed branches
+bash wt-merge.sh /projects/myapp
+```
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `src/cli.js` | Entry point: `run`, `status`, `models` |
+| `src/executor.js` | Shell out to CLI tools |
+| `src/registry.js` | CLI detection |
+| `config/cli-registry.json` | CLI command templates |
+| `dispatch.sh` | Worktree task dispatcher |
+| `wt-status.js` | Status polling |
+| `wt-merge.sh` | Merge with HITL conflict resolution |
+| `SKILL.md` | Claude Code skill definition |
+
+## Install as Claude Code Skill
+
+```bash
+cp SKILL.md ~/.claude/skills/cli-runner/SKILL.md
 ```
 
 ## License
 
-ISC
+MIT

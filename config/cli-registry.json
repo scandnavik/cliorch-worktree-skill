@@ -1,49 +1,17 @@
 {
-    "claude": {
-        "command": "claude",
-        "args_format": "-p",
-        "api_mode": "anthropic",
-        "default_model": "claude-haiku-4-5-20251001",
-        "capabilities": [
-            "code_generation",
-            "code_review",
-            "refactoring",
-            "debugging",
-            "analysis"
-        ],
-        "supports_file_input": false
-    },
-    "gemini": {
-        "command": "gemini",
-        "args_format": "-p",
-        "api_mode": "mock",
-        "default_model": "gemini-3.1-pro-preview",
-        "capabilities": [
-            "code_generation",
-            "code_review",
-            "refactoring"
-        ],
-        "supports_file_input": true
-    },
-    "codex": {
-        "command": "codex",
-        "args_format": "-p",
-        "api_mode": "mock",
-        "default_model": "gpt-5.2",
-        "capabilities": [
-            "code_generation"
-        ],
-        "supports_file_input": true
-    },
-    "copilot": {
-        "command": "copilot",
-        "args_format": "-p",
-        "api_mode": "mock",
-        "default_model": "copilot-default",
-        "capabilities": [
-            "code_generation",
-            "code_review"
-        ],
-        "supports_file_input": true
-    }
+  "codex": {
+    "command": "codex",
+    "args": ["exec", "--dangerously-bypass-approvals-and-sandbox", "{task}"],
+    "capabilities": ["code_generation", "refactoring", "debugging"]
+  },
+  "gemini": {
+    "command": "gemini",
+    "args": ["--approval-mode", "yolo", "-p", "{task}"],
+    "capabilities": ["code_generation", "code_review", "refactoring", "analysis"]
+  },
+  "copilot": {
+    "command": "copilot",
+    "args": ["{task}"],
+    "capabilities": ["code_generation", "code_review"]
+  }
 }
